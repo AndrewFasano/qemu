@@ -41,6 +41,9 @@
 /* The feature bitmap for virtio vsock */
 #define VIRTIO_VSOCK_F_SEQPACKET	1	/* SOCK_SEQPACKET supported */
 
+/* Feature bits */
+#define VIRTIO_VSOCK_F_DGRAM 0 /*Does vsock support dgram */
+
 struct virtio_vsock_config {
 	uint64_t guest_cid;
 } QEMU_PACKED;

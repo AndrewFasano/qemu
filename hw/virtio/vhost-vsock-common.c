@@ -20,6 +20,7 @@
 
 const int feature_bits[] = {
     VIRTIO_VSOCK_F_SEQPACKET,
+    VIRTIO_VSOCK_F_DGRAM,
     VHOST_INVALID_FEATURE_BIT
 };
 
@@ -31,6 +32,10 @@ uint64_t vhost_vsock_common_get_features(VirtIODevice *vdev, uint64_t features,
     if (vvc->seqpacket != ON_OFF_AUTO_OFF) {
         virtio_add_feature(&features, VIRTIO_VSOCK_F_SEQPACKET);
     }
+
+    virtio_add_feature(&features, VIRTIO_VSOCK_F_SEQPACKET);
+    if (vvc->vhost_dev.nvqs == 4) /* 4 means has dgram support */
+        virtio_add_feature(&features, VIRTIO_VSOCK_F_DGRAM);
 
     features = vhost_get_features(&vvc->vhost_dev, feature_bits, features);
 
@@ -224,9 +229,10 @@ int vhost_vsock_common_post_load(void *opaque, int version_id)
     return 0;
 }
 
-void vhost_vsock_common_realize(VirtIODevice *vdev)
+void vhost_vsock_common_realize(VirtIODevice *vdev, const char *name, bool enable_dgram)
 {
     VHostVSockCommon *vvc = VHOST_VSOCK_COMMON(vdev);
+    int nvq = 2;
 
     virtio_init(vdev, VIRTIO_ID_VSOCK, sizeof(struct virtio_vsock_config));
 
@@ -236,17 +242,24 @@ void vhost_vsock_common_realize(VirtIODevice *vdev)
     vvc->trans_vq = virtio_add_queue(vdev, VHOST_VSOCK_QUEUE_SIZE,
                                        vhost_vsock_common_handle_output);
 
-    /* The event queue belongs to QEMU */
+    if (enable_dgram) {
+        vvc->dgram_recv_vq = virtio_add_queue(vdev, VHOST_VSOCK_QUEUE_SIZE,
+					      vhost_vsock_common_handle_output);
+        vvc->dgram_trans_vq = virtio_add_queue(vdev, VHOST_VSOCK_QUEUE_SIZE,
+					       vhost_vsock_common_handle_output);
+	nvq = 4;
+    }
+	    /* The event queue belongs to QEMU */
     vvc->event_vq = virtio_add_queue(vdev, VHOST_VSOCK_QUEUE_SIZE,
                                        vhost_vsock_common_handle_output);
 
-    vvc->vhost_dev.nvqs = ARRAY_SIZE(vvc->vhost_vqs);
-    vvc->vhost_dev.vqs = vvc->vhost_vqs;
+    vvc->vhost_dev.nvqs = nvq;
+    vvc->vhost_dev.vqs = g_new0(struct vhost_virtqueue, vvc->vhost_dev.nvqs);
 
     vvc->post_load_timer = NULL;
 }
 
-void vhost_vsock_common_unrealize(VirtIODevice *vdev)
+void vhost_vsock_common_unrealize(VirtIODevice *vdev, bool enable_dgram)
 {
     VHostVSockCommon *vvc = VHOST_VSOCK_COMMON(vdev);
 
@@ -254,6 +267,11 @@ void vhost_vsock_common_unrealize(VirtIODevice *vdev)
 
     virtio_delete_queue(vvc->recv_vq);
     virtio_delete_queue(vvc->trans_vq);
+    if (enable_dgram) {
+        virtio_delete_queue(vvc->dgram_recv_vq);
+        virtio_delete_queue(vvc->dgram_trans_vq);
+    }
+
     virtio_delete_queue(vvc->event_vq);
     virtio_cleanup(vdev);
 }

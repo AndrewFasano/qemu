@@ -23,6 +23,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(VHostVSock, VHOST_VSOCK)
 typedef struct {
     uint64_t guest_cid;
     char *vhostfd;
+    bool enable_dgram;
 } VHostVSockConf;
 
 struct VHostVSock {

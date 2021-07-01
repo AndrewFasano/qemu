@@ -107,7 +107,7 @@ static void vuv_device_realize(DeviceState *dev, Error **errp)
         return;
     }
 
-    vhost_vsock_common_realize(vdev);
+    vhost_vsock_common_realize(vdev, "vhost-user-vsock", false);
 
     vhost_dev_set_config_notifier(&vvc->vhost_dev, &vsock_ops);
 
@@ -128,7 +128,7 @@ static void vuv_device_realize(DeviceState *dev, Error **errp)
 err_vhost_dev:
     vhost_dev_cleanup(&vvc->vhost_dev);
 err_virtio:
-    vhost_vsock_common_unrealize(vdev);
+    vhost_vsock_common_unrealize(vdev, false);
     vhost_user_cleanup(&vsock->vhost_user);
     return;
 }
@@ -144,7 +144,7 @@ static void vuv_device_unrealize(DeviceState *dev)
 
     vhost_dev_cleanup(&vvc->vhost_dev);
 
-    vhost_vsock_common_unrealize(vdev);
+    vhost_vsock_common_unrealize(vdev, false);
 
     vhost_user_cleanup(&vsock->vhost_user);
 

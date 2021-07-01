@@ -169,7 +169,7 @@ static void vhost_vsock_device_realize(DeviceState *dev, Error **errp)
         }
     }
 
-    vhost_vsock_common_realize(vdev);
+    vhost_vsock_common_realize(vdev, "vhost-vsock", vsock->conf.enable_dgram);
 
     ret = vhost_dev_init(&vvc->vhost_dev, (void *)(uintptr_t)vhostfd,
                          VHOST_BACKEND_TYPE_KERNEL, 0, errp);
@@ -193,24 +193,30 @@ err_vhost_dev:
     /* vhost_dev_cleanup() closes the vhostfd passed to vhost_dev_init() */
     vhost_dev_cleanup(&vvc->vhost_dev);
 err_virtio:
-    vhost_vsock_common_unrealize(vdev);
+    vhost_vsock_common_unrealize(vdev, vsock->conf.enable_dgram);
+    if (vhostfd >= 0) {
+        close(vhostfd);
+    }
+    return;
 }
 
 static void vhost_vsock_device_unrealize(DeviceState *dev)
 {
     VHostVSockCommon *vvc = VHOST_VSOCK_COMMON(dev);
     VirtIODevice *vdev = VIRTIO_DEVICE(dev);
+    VHostVSock *vsock = VHOST_VSOCK(dev);
 
     /* This will stop vhost backend if appropriate. */
     vhost_vsock_set_status(vdev, 0);
 
     vhost_dev_cleanup(&vvc->vhost_dev);
-    vhost_vsock_common_unrealize(vdev);
+    vhost_vsock_common_unrealize(vdev, vsock->conf.enable_dgram);
 }
 
 static Property vhost_vsock_properties[] = {
     DEFINE_PROP_UINT64("guest-cid", VHostVSock, conf.guest_cid, 0),
     DEFINE_PROP_STRING("vhostfd", VHostVSock, conf.vhostfd),
+    DEFINE_PROP_BOOL("enable_dgram", VHostVSock, conf.enable_dgram, false),
     DEFINE_PROP_END_OF_LIST(),
 };
 
