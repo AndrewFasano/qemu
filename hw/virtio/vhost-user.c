@@ -279,11 +279,13 @@ static int vhost_user_read_header(struct vhost_dev *dev, VhostUserMsg *msg)
     uint8_t *p = (uint8_t *) msg;
     int r, size = VHOST_USER_HDR_SIZE;
 
+    // This gets called 4 times, the 4th time fails IFF enable_dgram set!
     r = qemu_chr_fe_read_all(chr, p, size);
     if (r != size) {
         int saved_errno = errno;
         error_report("Failed to read msg header. Read %d instead of %d."
                      " Original request %d.", r, size, msg->hdr.request);
+
         return r < 0 ? -saved_errno : -EIO;
     }
 
@@ -401,9 +403,11 @@ static int vhost_user_read(struct vhost_dev *dev, VhostUserMsg *msg)
      * be prepared for re-entrancy. So we create a new one and switch chr
      * to use it.
      */
+
+    printf("DEV nvqs==%d, index %d\n", dev->nvqs, dev->vq_index);
     slave_update_read_handler(dev, ctxt);
     qemu_chr_be_update_read_handlers(chr->chr, ctxt);
-    qemu_chr_fe_add_watch(chr, G_IO_IN | G_IO_HUP, vhost_user_read_cb, &data);
+    qemu_chr_fe_add_watch(chr, G_IO_IN | G_IO_HUP, vhost_user_read_cb, &data); // Calls into vhost_user_read_header which fails on the 4th call?
 
     g_main_loop_run(loop);
 

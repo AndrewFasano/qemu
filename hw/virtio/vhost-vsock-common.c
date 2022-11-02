@@ -33,15 +33,22 @@ uint64_t vhost_vsock_common_get_features(VirtIODevice *vdev, uint64_t features,
         virtio_add_feature(&features, VIRTIO_VSOCK_F_SEQPACKET);
     }
 
-    virtio_add_feature(&features, VIRTIO_VSOCK_F_SEQPACKET);
-    if (vvc->vhost_dev.nvqs == 4) /* 4 means has dgram support */
+    //if (vvc->vhost_dev.nvqs == 4) { /* 4 means has dgram support */
+    if (vvc->enable_dgram) {
         virtio_add_feature(&features, VIRTIO_VSOCK_F_DGRAM);
+    }
 
     features = vhost_get_features(&vvc->vhost_dev, feature_bits, features);
 
     if (vvc->seqpacket == ON_OFF_AUTO_ON &&
         !virtio_has_feature(features, VIRTIO_VSOCK_F_SEQPACKET)) {
         error_setg(errp, "vhost-vsock backend doesn't support seqpacket");
+    }
+
+    if (vvc->enable_dgram) {
+      if (!virtio_has_feature(features, VIRTIO_VSOCK_F_DGRAM)) {
+        error_setg(errp, "vhost-vsock backend doesn't support dgram");
+      }
     }
 
     return features;
@@ -247,7 +254,10 @@ void vhost_vsock_common_realize(VirtIODevice *vdev, const char *name, bool enabl
 					      vhost_vsock_common_handle_output);
         vvc->dgram_trans_vq = virtio_add_queue(vdev, VHOST_VSOCK_QUEUE_SIZE,
 					       vhost_vsock_common_handle_output);
-	nvq = 4;
+	      nvq = 4;
+        printf("QEMU ENABLE DGRAM\n");
+    } else {
+        printf("QEMU NO DGRAM\n");
     }
 	    /* The event queue belongs to QEMU */
     vvc->event_vq = virtio_add_queue(vdev, VHOST_VSOCK_QUEUE_SIZE,
