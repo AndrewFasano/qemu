@@ -26,6 +26,7 @@ NAMES += cache
 NAMES += drcov
 NAMES += syscalls
 NAMES += syscalls_logger
+NAMES += startstopnet
 NAMES += sc_file_log
 NAMES += stringsearch
 NAMES += osi_linux
@@ -82,6 +83,12 @@ netbinds.o: netbinds.cpp
 	$(CC) $(CPPFLAGS) -c -o $@ $<
 
 libnetbinds.so: netbinds.o
+	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDLIBS) $(CPPLDLIBS)
+
+startstopnet.o: startstopnet.cpp
+	$(CC) $(CPPFLAGS) -c -o $@ $<
+
+libstartstopnet.so: startstopnet.o
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDLIBS) $(CPPLDLIBS)
 
 %.o: %.c
