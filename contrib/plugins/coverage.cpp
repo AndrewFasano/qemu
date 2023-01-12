@@ -14,6 +14,10 @@
  #include <netinet/in.h>
  #include <arpa/inet.h>
 
+//For communication with rust fuzzer
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
 #include <vector>
 #include <tuple>
 #include <set>
@@ -35,6 +39,10 @@ const uint32_t fnv_prime = 0x811C9DC5;
 
 #define MAP_SIZE 0xffffff
 static char *shared_mem;
+
+//for communication with rust fuzzer
+struct shmid_ds shm_wsf_input_ds;//get size in bytes: shm_wsf_input_ds.shm_segsz
+void *shm_wsf_input; //where the fuzzer will place the input
 
 /*
  * Process map: (pid, create) -> Process(name, blocks, active_vmas, last_pc)
@@ -207,7 +215,7 @@ static void plugin_exit(qemu_plugin_id_t id, void *p)
     FILE *f = fopen(covfile, "wb");
     fwrite(shared_mem, 1, MAP_SIZE, f);
     fclose(f);
-
+    shmdt(shm_wsf_input);
 
 #if 0
     for (auto& k : *proc_map) {
@@ -548,6 +556,19 @@ int qemu_plugin_install(qemu_plugin_id_t id, const qemu_info_t *info,
       printf("Unable to allocate memory\n");
       return 1;
     }
+
+    //Get shm
+    char *shmid_str;
+    int shmid;
+    shmid_str = getenv("WSF_input_shmid");
+    if(shmid_str==NULL) {
+      printf("Could not find WSF_input_shmid in environment!\n");
+      return 1;
+    }
+    shmid = std::stoi(shmid_str);
+    shm_wsf_input = shmat(shmid, NULL, SHM_RDONLY);
+    shmctl(shmid, IPC_STAT, &shm_wsf_input_ds);
+    printf("Mapped fuzzer input with len %lu\n",shm_wsf_input_ds.shm_segsz);
 
     //fp = fopen(file_name, "wb");
     qemu_plugin_register_vcpu_tb_trans_cb(id, vcpu_tb_trans);
