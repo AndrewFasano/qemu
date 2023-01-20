@@ -500,6 +500,22 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
 
     /// In-guest driver ///
     case 6001: { // Guest is ready for data
+
+      //Get shm
+      char *shmid_str;
+      int shmid;
+      shmid_str = getenv("WSF_input_shmid");
+      if(shmid_str==NULL) {
+        printf("Could not find WSF_input_shmid in environment!\n");
+        break;
+      }
+      printf("WSF_input_shmid: %s\n", shmid_str);
+      fflush(stdout);
+      shmid = std::stoi(shmid_str);
+      shm_wsf_input = shmat(shmid, NULL, SHM_RDONLY);
+      shmctl(shmid, IPC_STAT, &shm_wsf_input_ds);
+      printf("Mapped fuzzer input with len %lu\n",shm_wsf_input_ds.shm_segsz);
+
       uint64_t gva = (uint64_t)a1;
 
       // Do we want to fuzz something? We probably should, if not, what are we doing here?
@@ -556,19 +572,6 @@ int qemu_plugin_install(qemu_plugin_id_t id, const qemu_info_t *info,
       printf("Unable to allocate memory\n");
       return 1;
     }
-
-    //Get shm
-    char *shmid_str;
-    int shmid;
-    shmid_str = getenv("WSF_input_shmid");
-    if(shmid_str==NULL) {
-      printf("Could not find WSF_input_shmid in environment!\n");
-      return 1;
-    }
-    shmid = std::stoi(shmid_str);
-    shm_wsf_input = shmat(shmid, NULL, SHM_RDONLY);
-    shmctl(shmid, IPC_STAT, &shm_wsf_input_ds);
-    printf("Mapped fuzzer input with len %lu\n",shm_wsf_input_ds.shm_segsz);
 
     //fp = fopen(file_name, "wb");
     qemu_plugin_register_vcpu_tb_trans_cb(id, vcpu_tb_trans);
