@@ -511,7 +511,7 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
       }
       printf("WSF_input_shmid: %s\n", shmid_str);
       fflush(stdout);
-      shmid = std::stoi(shmid_str);
+      shmid = std::atoi(shmid_str);
       shm_wsf_input = shmat(shmid, NULL, SHM_RDONLY);
       shmctl(shmid, IPC_STAT, &shm_wsf_input_ds);
       printf("Mapped fuzzer input with len %lu\n",shm_wsf_input_ds.shm_segsz);
