@@ -504,6 +504,7 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
       //Get shm
       char *shmid_str;
       int shmid;
+      size_t input_len;
       shmid_str = getenv("WSF_input_shmid");
       if(shmid_str==NULL) {
         printf("Could not find WSF_input_shmid in environment!\n");
@@ -514,7 +515,14 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
       shmid = std::atoi(shmid_str);
       shm_wsf_input = shmat(shmid, NULL, SHM_RDONLY);
       shmctl(shmid, IPC_STAT, &shm_wsf_input_ds);
-      printf("Mapped fuzzer input with len %lu\n",shm_wsf_input_ds.shm_segsz);
+      input_len=shm_wsf_input_ds.shm_segsz;
+      printf("Mapped fuzzer input with len %lu\n",input_len);
+      printf("Fuzzer input: 0x");
+      for(size_t i=0; i<input_len; i++) {
+        printf("%02hhx", ((char *)shm_wsf_input)[i]);
+      }
+      printf("\n");
+      fflush(stdout);
 
       uint64_t gva = (uint64_t)a1;
 
