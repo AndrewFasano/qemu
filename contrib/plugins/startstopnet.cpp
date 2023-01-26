@@ -25,7 +25,6 @@ QEMU_PLUGIN_EXPORT const char *qemu_plugin_name = "startstopnet";
 }
 
 qemu_plugin_id_t self_id;
-static GMutex lock;
 
 
 /* Extras
