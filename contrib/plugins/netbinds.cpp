@@ -353,8 +353,8 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
       break;
     }
 
-    default:
-      printf("ERROR: unknown hypercall number %ld with arg %lx\n", num, a1);
+    //default:
+    //  printf("ERROR: unknown hypercall number %ld with arg %lx\n", num, a1);
   }
 }
 
