@@ -48,6 +48,9 @@ static char *shared_mem;
 //for communication with rust fuzzer
 struct shmid_ds shm_wsf_input_ds;//get size in bytes: shm_wsf_input_ds.shm_segsz
 void *shm_wsf_input; //where the fuzzer will place the input
+int shmid = -1;
+
+bool sent_input = false; // When true, we'll ignore the buffer from rust
 
 /*
  * Process map: (pid, create) -> Process(name, blocks, active_vmas, last_pc)
@@ -505,59 +508,53 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
 
     /// In-guest driver ///
     case 6001: { // Guest is ready for data
-
-      //Get shm
-      char *shmid_str;
-      int shmid;
-      size_t input_len;
-      shmid_str = getenv("WSF_input_shmid");
-      if(shmid_str==NULL) {
-        printf("Could not find WSF_input_shmid in environment!\n");
-        break;
-      }
-      //printf("WSF_input_shmid: %s\n", shmid_str);
-      //fflush(stdout);
-      shmid = std::atoi(shmid_str);
-      shm_wsf_input = shmat(shmid, NULL, SHM_RDONLY);
-      shmctl(shmid, IPC_STAT, &shm_wsf_input_ds);
-      input_len=shm_wsf_input_ds.shm_segsz;
-#if 0
-      printf("Mapped fuzzer input with len %lu\n",input_len);
-      printf("Fuzzer input: 0x");
-      for(size_t i=0; i<input_len; i++) {
-        printf("%02hhx", ((char *)shm_wsf_input)[i]);
-      }
-      printf("\n");
-      fflush(stdout);
-#endif
-
       uint64_t gva = (uint64_t)a1;
 
-      // Do we want to fuzz something? We probably should, if not, what are we doing here?
+      if (sent_input) {
+        char sleep[] = {"\x00"};
+        if (qemu_plugin_write_guest_virt_mem(gva, &sleep, sizeof(sleep)) == -1) {
+          printf("ERROR couldn't send sleep data: GVA %#lx\n", gva);
+        }
+      } else {
+        if (shmid == -1) {
+          // Set shmid from env
+          char *shmid_str;
+          shmid_str = getenv("WSF_input_shmid");
+          if (shmid_str==NULL) {
+            printf("Could not find WSF_input_shmid in environment!\n");
+            break;
+          }
+          shmid = std::atoi(shmid_str);
+        }
 
-      // Create buffer
-      guest_cmd_ipv4 cmd = {0};
 
-      cmd.command = 0xffffffff; // Always ffs
-      cmd.ip = (uint32_t)TARGET_IP;
-      cmd.is_ipv6 = (uint32_t)IS_IPV6;
-      cmd.port = TARGET_PORT;
+        size_t input_len;
+        shm_wsf_input = shmat(shmid, NULL, SHM_RDONLY);
+        shmctl(shmid, IPC_STAT, &shm_wsf_input_ds);
+        input_len=shm_wsf_input_ds.shm_segsz;
 
-      for (size_t i=0; i < std::min(sizeof(cmd.data), input_len); i++) {
-        cmd.data[i] = ((char*)shm_wsf_input)[i];
-      }
+        // Create buffer
+        guest_cmd_ipv4 cmd = {0};
 
-      char ip_str[INET6_ADDRSTRLEN];
-      inet_ntop((cmd.is_ipv6 ? AF_INET6 : AF_INET), &TARGET_IP, ip_str, sizeof(ip_str));
-      printf("Payload for %s:%d: %s\n", ip_str, cmd.port, cmd.data);
+        cmd.command = 0xffffffff; // Always ffs
+        cmd.ip = (uint32_t)TARGET_IP;
+        cmd.is_ipv6 = (uint32_t)IS_IPV6;
+        cmd.port = TARGET_PORT;
 
-      //for (size_t i=0; i < sizeof(cmd); i++) {
-      //  printf("%d, ", ((char*)&cmd)[i]);
-      //}
+        for (size_t i=0; i < std::min(sizeof(cmd.data), input_len); i++) {
+          cmd.data[i] = ((char*)shm_wsf_input)[i];
+        }
 
-      // Guest should keep retrying quickly so when we restore the snapshot it's good to go!
-      if (qemu_plugin_write_guest_virt_mem(gva, &cmd, sizeof(cmd)) == -1) {
-        printf("ERROR couldn't send in data: GVA %#lx\n", gva);
+        char ip_str[INET6_ADDRSTRLEN];
+        inet_ntop((cmd.is_ipv6 ? AF_INET6 : AF_INET), &TARGET_IP, ip_str, sizeof(ip_str));
+        printf("Payload for %s:%d: %s\n", ip_str, cmd.port, cmd.data);
+
+        sent_input = true;
+
+        // Write our buffer into the VPN's memory
+        if (qemu_plugin_write_guest_virt_mem(gva, &cmd, sizeof(cmd)) == -1) {
+          printf("ERROR couldn't send in data: GVA %#lx\n", gva);
+        }
       }
       break;
     }
