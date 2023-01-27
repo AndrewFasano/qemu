@@ -206,16 +206,28 @@ switch (num) {
     case  (_recv + log_base +  4):
       current_recv.datalen = arg;
     break;
-    case  (_recv + log_base +  5): // recvfrom
-    case  (_recv + log_base +  6): // ___sys_recvmsg
-    case  (_recv + log_base +  7): // inet_recvmsg
-    case  (_recv + log_base +  8): // sock_read_iter
+    case  (_recv + log_base +  5): // Size of buffer
     {
       current_recv.datap = arg;
+
+      char* buf_contents = (char*)malloc(current_recv.datalen);
+      if (!buf_contents) {
+          printf("Failed to allocate %d byte buffer for recv\n", current_recv.datalen);
+          return;
+      }
+
+      if (qemu_plugin_read_guest_virt_mem(arg, buf_contents, current_recv.datalen) == -1) {
+        free(buf_contents);
+        printf("ERROR: couldn't read %d bytes from GVA %#x\n", current_recv.datalen, current_recv.datap);
+        return;
+      }
+
       auto sock = active_socks->find(current_recv.filep);
       if (sock == active_socks->end()) {
-        //printf("WARNING: in pid %d recv for %x but it's a non-tracked, non-listening socket\n", current_recv.pid,
-        //        current_recv.filep);
+        printf("WARNING: in pid %d recv for %x but it's a non-tracked, non-listening socket\n", current_recv.pid,
+                current_recv.filep);
+        printf("\tBuffer %d bytes: %s\n", current_recv.datalen, buf_contents);
+        free(buf_contents);
         return;
       }
 
@@ -229,6 +241,9 @@ switch (num) {
           sock->second->accept_pid, sock->second->accept_tid, 
           parent->listen_pid, parent->listen_tid, 
           current_recv.pid, current_recv.tgid);
+
+      printf("Buffer is %d bytes: %s\n", current_recv.datalen, buf_contents);
+      free(buf_contents);
 
       sock->second->recv_pos += current_recv.datalen; // Could be less
       parent->child_recvd = true;
