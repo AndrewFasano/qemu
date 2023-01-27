@@ -133,10 +133,10 @@ void take_snap(qemu_plugin_id_t id, void* udata) {
 
   // Take a snapshot with a unique name, mark everything in launched_services as snapped
   char snap_name[32];
-  snprintf(snap_name, 32, "snap_%d", snap_counter+1);
+  snprintf(snap_name, 32, "snap_%d", snap_counter);
 
   //g_mutex_lock(&lock);
-  bool took_snap = false;
+  bool took_snap = false; // Did we take any snapshot (may be for multiple services)
   for (auto service : *launched_services) {
     if (!service->snapped) {
       took_snap = true;
@@ -147,8 +147,8 @@ void take_snap(qemu_plugin_id_t id, void* udata) {
   }
   //g_mutex_unlock(&lock);
   if (took_snap) {
-    snap_counter++; // snap_name is already +1'd
     qemu_plugin_save_snapshot(snap_name, true);
+    snap_counter++;
   }
   main_loop_wait_active = false;
 }
