@@ -167,8 +167,8 @@ switch (num) {
     break;
     case  (_accept + log_base +  4): {
       current_accept.newfilep = arg;
-      //printf("Accept in pid %d tgid %d with filep %x new filep %x\n",
-      //       current_accept.pid, current_accept.tgid, current_accept.filep, current_accept.newfilep);
+      printf("Accept in pid %d tgid %d with filep %x new filep %x\n",
+             current_accept.pid, current_accept.tgid, current_accept.filep, current_accept.newfilep);
 
       // filep might exist (if we set it up earlier)
       auto parent = active_socks->find(current_accept.filep);
