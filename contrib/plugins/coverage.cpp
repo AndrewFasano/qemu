@@ -33,6 +33,11 @@ QEMU_PLUGIN_EXPORT const char *qemu_plugin_name = "coverage";
 static const char *covfile = "coverage.map";
 static const char *bindfile = "cvpn.csv";
 
+// Target details, default values. Configure with runtime arguments
+int TARGET_IP = inet_addr("127.0.0.1");
+int TARGET_PORT = 8080;
+bool IS_IPV6 = false;
+
 static GMutex lock;
 //const uint64_t fnv_prime = 0x100000001b3ULL;
 const uint32_t fnv_prime = 0x811C9DC5;
@@ -516,6 +521,7 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
       shm_wsf_input = shmat(shmid, NULL, SHM_RDONLY);
       shmctl(shmid, IPC_STAT, &shm_wsf_input_ds);
       input_len=shm_wsf_input_ds.shm_segsz;
+#if 0
       printf("Mapped fuzzer input with len %lu\n",input_len);
       printf("Fuzzer input: 0x");
       for(size_t i=0; i<input_len; i++) {
@@ -523,6 +529,7 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
       }
       printf("\n");
       fflush(stdout);
+#endif
 
       uint64_t gva = (uint64_t)a1;
 
@@ -532,17 +539,17 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
       guest_cmd_ipv4 cmd = {0};
 
       cmd.command = 0xffffffff; // Always ffs
-      cmd.ip = inet_addr("127.0.0.1") ;
-      cmd.is_ipv6 = 0;
-      cmd.port = 8000;
+      cmd.ip = TARGET_IP;
+      cmd.is_ipv6 = (int)IS_IPV6;
+      cmd.port = TARGET_PORT;
 
-      for (size_t i=0; i < sizeof(cmd.data); i++) {
-        cmd.data[i] = char(1);
+      for (size_t i=0; i < std::min(sizeof(cmd.data), input_len); i++) {
+        cmd.data[i] = ((char*)shm_wsf_input)[i];
       }
 
-      for (size_t i=0; i < sizeof(cmd); i++) {
-        printf("%d, ", ((char*)&cmd)[i]);
-      }
+      //for (size_t i=0; i < sizeof(cmd); i++) {
+      //  printf("%d, ", ((char*)&cmd)[i]);
+      //}
 
       // Guest should keep retrying quickly so when we restore the snapshot it's good to go!
       if (qemu_plugin_write_guest_virt_mem(gva, &cmd, sizeof(cmd)) == -1) {
@@ -568,11 +575,21 @@ int qemu_plugin_install(qemu_plugin_id_t id, const qemu_info_t *info,
             //file_name = g_strdup(tokens[1]);
             covfile = g_strdup(tokens[1]);
         }
-        if (g_strcmp0(tokens[0], "bindfile") == 0) {
+        else if (g_strcmp0(tokens[0], "bindfile") == 0) {
             //file_name = g_strdup(tokens[1]);
             bindfile = g_strdup(tokens[1]);
             fclose(fopen(bindfile, "w")); // Empty file
         }
+        else if (g_strcmp0(tokens[0], "target_port") == 0) {
+          TARGET_PORT = atoi(tokens[1]);
+        }
+        else if (g_strcmp0(tokens[0], "target_ip") == 0) {
+          TARGET_IP = inet_addr(tokens[1]);
+        }
+        else if (g_strcmp0(tokens[0], "ipv6") == 0) {
+          IS_IPV6=true;
+        }
+
     }
 
     shared_mem = (char*)malloc(MAP_SIZE);
