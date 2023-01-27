@@ -34,7 +34,7 @@ static const char *covfile = "coverage.map";
 static const char *bindfile = "cvpn.csv";
 
 // Target details, default values. Configure with runtime arguments
-int TARGET_IP = inet_addr("127.0.0.1");
+in_addr_t TARGET_IP = inet_addr("127.0.0.1");
 int TARGET_PORT = 8080;
 bool IS_IPV6 = false;
 
@@ -539,13 +539,17 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
       guest_cmd_ipv4 cmd = {0};
 
       cmd.command = 0xffffffff; // Always ffs
-      cmd.ip = TARGET_IP;
-      cmd.is_ipv6 = (int)IS_IPV6;
+      cmd.ip = (uint32_t)TARGET_IP;
+      cmd.is_ipv6 = (uint32_t)IS_IPV6;
       cmd.port = TARGET_PORT;
 
       for (size_t i=0; i < std::min(sizeof(cmd.data), input_len); i++) {
         cmd.data[i] = ((char*)shm_wsf_input)[i];
       }
+
+      char ip_str[INET6_ADDRSTRLEN];
+      inet_ntop((cmd.is_ipv6 ? AF_INET6 : AF_INET), &TARGET_IP, ip_str, sizeof(ip_str));
+      printf("Payload for %s:%d: %s\n", ip_str, cmd.port, cmd.data);
 
       //for (size_t i=0; i < sizeof(cmd); i++) {
       //  printf("%d, ", ((char*)&cmd)[i]);
