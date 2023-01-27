@@ -97,6 +97,7 @@ struct service_t {
   char ip_addr[64];
   char comm[64];
   bool snapped;
+  bool snap_pending;
 
   //bool operator==(const service_t &other) const
   //{ return (port == other.port
@@ -132,18 +133,23 @@ void take_snap(qemu_plugin_id_t id, void* udata) {
 
   // Take a snapshot with a unique name, mark everything in launched_services as snapped
   char snap_name[32];
-  snprintf(snap_name, 32, "snap_%d", snap_counter++);
+  snprintf(snap_name, 32, "snap_%d", snap_counter+1);
 
   //g_mutex_lock(&lock);
+  bool took_snap = false;
   for (auto service : *launched_services) {
     if (!service->snapped) {
+      took_snap = true;
       service->snapped = true; // Service is now snapped, well, it is in a sec
       printf("Snapshot %s is valid for service %s listening on %s:%d proto=%d\n", snap_name,
              service->comm, service->ip_addr, service->port, service->proto);
     }
   }
   //g_mutex_unlock(&lock);
-  qemu_plugin_save_snapshot(snap_name, true);
+  if (took_snap) {
+    snap_counter++; // snap_name is already +1'd
+    qemu_plugin_save_snapshot(snap_name, true);
+  }
   main_loop_wait_active = false;
 }
 
@@ -326,7 +332,8 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
         // Don't have anything queued up for the next main loop wait.
         // But if there are any new services, we should queue it up
         for (auto service : *launched_services) {
-          if (!service->snapped) {
+          if (!service->snapped && !service->snap_pending) {
+            service->snap_pending = true; // So we only queue one main-loop-wait per serviec
             main_loop_wait_active = true;
             bool* active = new bool;
             *active = false;
