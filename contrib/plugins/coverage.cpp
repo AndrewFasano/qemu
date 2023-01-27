@@ -515,8 +515,8 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
         printf("Could not find WSF_input_shmid in environment!\n");
         break;
       }
-      printf("WSF_input_shmid: %s\n", shmid_str);
-      fflush(stdout);
+      //printf("WSF_input_shmid: %s\n", shmid_str);
+      //fflush(stdout);
       shmid = std::atoi(shmid_str);
       shm_wsf_input = shmat(shmid, NULL, SHM_RDONLY);
       shmctl(shmid, IPC_STAT, &shm_wsf_input_ds);
