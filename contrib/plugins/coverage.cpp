@@ -37,6 +37,7 @@ static const char *bindfile = "cvpn.csv";
 in_addr_t TARGET_IP = inet_addr("127.0.0.1");
 int TARGET_PORT = 8080;
 bool IS_IPV6 = false;
+bool IS_UDP = false;
 
 static GMutex lock;
 //const uint64_t fnv_prime = 0x100000001b3ULL;
@@ -125,12 +126,12 @@ struct __attribute__((__packed__)) guest_cmd_ipv4 {
   uint32_t ip; // 4 bytes. Should have 8 bytes before
   uint16_t port; // Big endian
 
-  uint16_t zeros_b;
-  uint16_t is_udp; // Bool with 1 byte padding before
+  uint32_t is_udp; // Bool with 1 byte padding before
 
   uint8_t data[1024];
 };
 
+// XXX untested, maybe needs to be packed
 struct guest_cmd_ipv6 {
   char command[1];
   char zeros_a[4];
@@ -539,6 +540,7 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
         cmd.command = 0xffffffff; // Always ffs
         cmd.ip = (uint32_t)TARGET_IP;
         cmd.is_ipv6 = (uint32_t)IS_IPV6;
+        cmd.is_udp = (uint32_t)IS_UDP;
         cmd.port = TARGET_PORT;
 
         for (size_t i=0; i < std::min(sizeof(cmd.data), input_len); i++) {
@@ -588,7 +590,10 @@ int qemu_plugin_install(qemu_plugin_id_t id, const qemu_info_t *info,
           TARGET_IP = inet_addr(tokens[1]);
         }
         else if (g_strcmp0(tokens[0], "ipv6") == 0) {
-          IS_IPV6=true;
+          IS_IPV6=(strcmp(tokens[0], "false") != 0); // If it's set and "false", it's true
+        }
+        else if (g_strcmp0(tokens[0], "udp") == 0) {
+          IS_UDP=(strcmp(tokens[1], "false") != 0); // If it's set and not "false" it's true
         }
 
     }
