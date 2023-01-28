@@ -42,6 +42,7 @@
 #include "exec/ram_addr.h"
 #include "exec/address-spaces.h"
 #include "disas/disas.h"
+#include "sysemu/runstate.h"
 
 #include "plugin.h"
 #ifndef CONFIG_USER_ONLY
@@ -806,4 +807,8 @@ uint64_t qemu_plugin_entry_code(void)
     entry = ts->info->entry;
 #endif
     return entry;
+}
+
+void qemu_plugin_vm_pause(void) {
+   vm_stop(RUN_STATE_PAUSED);
 }

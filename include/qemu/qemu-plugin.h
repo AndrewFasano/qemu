@@ -828,4 +828,10 @@ uint64_t qemu_plugin_end_code(void);
  */
 uint64_t qemu_plugin_entry_code(void);
 
+/**
+ * qemu_plugin_vm_pause() - pause the guest
+ *
+ */
+void qemu_plugin_vm_pause(void);
+
 #endif /* QEMU_QEMU_PLUGIN_H */

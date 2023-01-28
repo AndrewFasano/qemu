@@ -585,6 +585,9 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
       break;
     }
 
+    case 6002: { // VPN got a response (easy end of processing)
+      qemu_plugin_vm_pause();
+    }
     //default:
     //  printf("ERROR: unknown hypercall number %ld with arg %lx\n", num, a1);
   }
