@@ -43,13 +43,18 @@ static GMutex lock;
 //const uint64_t fnv_prime = 0x100000001b3ULL;
 const uint32_t fnv_prime = 0x811C9DC5;
 
-#define MAP_SIZE 0xffffff
-static char *shared_mem;
+//#define MAP_SIZE 0xffffff
+//static char *shared_mem;
+int cov_map_size;
 
 //for communication with rust fuzzer
 struct shmid_ds shm_wsf_input_ds;//get size in bytes: shm_wsf_input_ds.shm_segsz
 void *shm_wsf_input; //where the fuzzer will place the input
-int shmid = -1;
+int shmid_input = -1;
+
+struct shmid_ds shm_wsf_cov_ds;//get size in bytes: shm_wsf_input_ds.shm_segsz
+char *cov_map_shm = NULL; // Where we'll write our coverage info
+int shmid_cov = -1;
 
 bool sent_input = false; // When true, we'll ignore the buffer from rust
 
@@ -221,10 +226,11 @@ void report_bind(bind_t pending_bind) {
 
 static void plugin_exit(qemu_plugin_id_t id, void *p)
 {
-    FILE *f = fopen(covfile, "wb");
-    fwrite(shared_mem, 1, MAP_SIZE, f);
-    fclose(f);
+    //FILE *f = fopen(covfile, "wb");
+    //fwrite(shared_mem, 1, MAP_SIZE, f);
+    //fclose(f);
     shmdt(shm_wsf_input);
+    shmdt(cov_map_shm);
 
 #if 0
     for (auto& k : *proc_map) {
@@ -243,6 +249,9 @@ static void plugin_exit(qemu_plugin_id_t id, void *p)
 proc_t *current_proc;
 static void vcpu_tb_exec(unsigned int cpu_index, void *udata)
 {
+    if (cov_map_shm == NULL)
+      return;
+
     if (qemu_plugin_in_privileged_mode())
       return;
 
@@ -278,7 +287,7 @@ static void vcpu_tb_exec(unsigned int cpu_index, void *udata)
         //printf("\t%s hashes to %x\n\toffset >> 4 is %x\t offset << 8 is %x\n", e->filename, hash(e->filename), offset >>4, offset << 8);
         //printf("\toffset >> 4 ^ offset << 8 is %x\n", (offset >>4) ^ (offset << 8));
 
-       shared_mem[(cur_location ^ current_proc->prev_location) % MAP_SIZE]++;
+       cov_map_shm[(cur_location ^ current_proc->prev_location) % cov_map_size]++;
        current_proc->prev_location = cur_location >> 1;
 
 #if 0
@@ -510,6 +519,7 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
     /// In-guest driver ///
     case 6001: { // Guest is ready for data
       uint64_t gva = (uint64_t)a1;
+      size_t input_len=-1;
 
       if (sent_input) {
         char sleep[] = {"\x00"};
@@ -517,22 +527,36 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
           printf("ERROR couldn't send sleep data: GVA %#lx\n", gva);
         }
       } else {
-        if (shmid == -1) {
-          // Set shmid from env
+        if (shmid_input == -1) {
+          // Set shmid_input from env
           char *shmid_str;
           shmid_str = getenv("WSF_input_shmid");
           if (shmid_str==NULL) {
             printf("Could not find WSF_input_shmid in environment!\n");
             break;
           }
-          shmid = std::atoi(shmid_str);
+          shmid_input = std::atoi(shmid_str);
+
+          shm_wsf_input = shmat(shmid_input, NULL, SHM_RDONLY);
+          shmctl(shmid_input, IPC_STAT, &shm_wsf_input_ds);
+          input_len = shm_wsf_input_ds.shm_segsz;
         }
 
+        // XXX: Do we ever need to reload this shmid?
+        if (shmid_cov == -1) {
+          char *shmid_str;
+          shmid_str = getenv("WSF_coverage_shmid");
+          if (shmid_str==NULL) {
+            printf("Could not find WSF_coverage_shmid in environment!\n");
+            break;
+          }
+          shmid_cov = std::atoi(shmid_str);
 
-        size_t input_len;
-        shm_wsf_input = shmat(shmid, NULL, SHM_RDONLY);
-        shmctl(shmid, IPC_STAT, &shm_wsf_input_ds);
-        input_len=shm_wsf_input_ds.shm_segsz;
+          cov_map_shm = (char*)shmat(shmid_cov, NULL, 0); // 0 is RDWR, maybe.
+          shmctl(shmid_cov, IPC_STAT, &shm_wsf_cov_ds);
+          cov_map_size = shm_wsf_cov_ds.shm_segsz;
+        }
+
 
         // Create buffer
         guest_cmd_ipv4 cmd = {0};
@@ -598,11 +622,11 @@ int qemu_plugin_install(qemu_plugin_id_t id, const qemu_info_t *info,
 
     }
 
-    shared_mem = (char*)malloc(MAP_SIZE);
-    if (shared_mem == NULL) {
-      printf("Unable to allocate memory\n");
-      return 1;
-    }
+    //shared_mem = (char*)malloc(MAP_SIZE);
+    //if (shared_mem == NULL) {
+    //  printf("Unable to allocate memory\n");
+    //  return 1;
+    //}
 
     //fp = fopen(file_name, "wb");
     qemu_plugin_register_vcpu_tb_trans_cb(id, vcpu_tb_trans);
