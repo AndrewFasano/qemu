@@ -809,6 +809,25 @@ uint64_t qemu_plugin_entry_code(void)
     return entry;
 }
 
+#define EXCP_LIBAFL_BP 0xf4775747
+extern CPUState* libafl_breakpoint_cpu;
+extern vaddr libafl_breakpoint_pc;
+extern int libafl_qemu_break_asap;
+
 void qemu_plugin_vm_pause(void) {
-   vm_stop(RUN_STATE_PAUSED);
+  //vm_stop(RUN_STATE_PAUSED);
+  // From accel/tcg/tcg-runtime.c:155 "libafl_qemu_trigger_breakpoint"
+  CPUState *cpu = current_cpu;
+
+  libafl_breakpoint_cpu = cpu;
+#ifndef CONFIG_USER_ONLY
+  qemu_system_debug_request();
+  cpu->stopped = true;
+#endif
+  if (cpu->running) {
+    cpu->exception_index = EXCP_LIBAFL_BP;
+    cpu_loop_exit(cpu);
+  } else {
+    libafl_qemu_break_asap = 1;
+  }
 }
