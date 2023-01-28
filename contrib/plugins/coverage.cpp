@@ -586,6 +586,7 @@ void vcpu_hypercall(qemu_plugin_id_t id, unsigned int vcpu_index, int64_t num, u
     }
 
     case 6002: { // VPN got a response (easy end of processing)
+      printf("Coverage: Got 6002 HC from VPN - all done\n");
       qemu_plugin_vm_pause();
     }
     //default:
