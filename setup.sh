@@ -3,13 +3,17 @@
 # Usage: ./qemu_setup.sh [build_dir] [target-list] [extra_config_args...]
 
 set -eux
-mkdir -p "/root/libafl_qemu/$1"; 
-cd "/root/libafl_qemu/$1";
+BUILD_DIR="$1"
 shift
+mkdir -p "/root/libafl_qemu/${BUILD_DIR}";
+cd "/root/libafl_qemu/${BUILD_DIR}";
 
 TARGETS="$1"
 shift
-/root/libafl_qemu/configure \
+
+# only rebuild if config is missing
+if [ ! -e config-host.mak ]; then
+  /root/libafl_qemu/configure \
                 --target-list=${TARGETS} \
                 --enable-system \
                 --disable-slirp \
@@ -124,4 +128,7 @@ shift
                 --disable-capstone \
                 --disable-sndio \
                 $@
-    make -j
+fi
+
+# Always make
+make -j
