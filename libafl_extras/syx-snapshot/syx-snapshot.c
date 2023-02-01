@@ -426,4 +426,5 @@ void syx_snapshot_root_restore(syx_snapshot_t* snapshot) {
     syx_snapshot_restore_root_from_dirty_list(&snapshot->root_snapshot, system_mr, &snapshot->dirty_list);
     device_restore_all(snapshot->root_snapshot.dss);
     syx_snapshot_dirty_list_flush(&snapshot->dirty_list);
+    //qemu_plugin_vcpu_loadvm(current_cpu);
 }
