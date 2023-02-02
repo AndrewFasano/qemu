@@ -12,7 +12,7 @@ TARGETS="$1"
 shift
 
 # only rebuild if config is missing
-if [ ! -e config-host.mak ]; then
+#if [ ! -e config-host.mak ]; then
   /root/libafl_qemu/configure \
                 --target-list=${TARGETS} \
                 --enable-system \
@@ -128,7 +128,7 @@ if [ ! -e config-host.mak ]; then
                 --disable-capstone \
                 --disable-sndio \
                 $@
-fi
+#fi
 
 # Always make
 make -j
